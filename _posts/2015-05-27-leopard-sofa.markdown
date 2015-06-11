@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "Suddenly, a leopard print sofa appers"
+title:  "Suddenly, a leopard print sofa appears"
 date:   2015-05-27 14:34:25
 categories: ml
 tags:
