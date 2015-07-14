@@ -1,5 +1,5 @@
 # Build settings
-markdown: redcarpet
+markdown: kramdown
 highlighter: pygments
 gems:
   - jemoji
@@ -7,7 +7,7 @@ gems:
 # Site settings
 title: "Unintentionally inconsiderate"
 description: > # this means to ignore newlines until "email:"
-   Learning to learning to learn
+   Learning to learn
 
 email: "art1783@gmail.com"
 #blog logo
