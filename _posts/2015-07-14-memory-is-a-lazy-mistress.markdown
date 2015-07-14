@@ -4,7 +4,7 @@ title:  "Memory is a lazy mistress"
 date:   2015-07-14 15:05:00
 categories: ml
 tags:
-comments: false
+comments: true
 ---
 
 Trying to jump on the deep learning bandwagon, I often miss things. Sometimes I find my mind filled with models and algorihtms I hardly fully undestand: they become obscure concepts and fancy buzzwords. That actually bothers me, so I've decided to make a couple of detailed runs across the stuff I'm kinda already familiar with &mdash; this time, Restricted Boltzmann Machines. And turns out that the best way to understand something for me is to write it down in a stupidly oversimplified, tutorial style, leaving out intimidating equations and trying to make small code examples all the way through. So that's what I'm going to do now. Maybe someone else will find it helpful too.
