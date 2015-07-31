@@ -1,0 +1,74 @@
+---
+layout: post
+title:  "RBMs: part 2"
+date:   2015-07-31 12:49:00
+categories: ml
+tags:
+comments: true
+---
+
+I've interrupted my previous [post](http://rocknrollnerd.github.io/ml/2015/07/23/finally-rbms.html) because of the nasty error with whitened data. So, good news, me (I guess): it seems that whitening MNIST dataset is just a bad idea and I shouldn't do it at all.
+
+Now, I'm still not quite sure if this is in fact the case. The strongest counterargument agaist this position is simply the way whitened digits look like (the [example](http://rocknrollnerd.github.io/assets/article_images/2015-07-23-finally-rbms-part-1/whitened_digits.png), again) &mdash; they are still perfectly distinguishable by a human eye although a little noisy. But when I'm trying to run third-party, well tested models against whitened dataset, it's always a failure:
+
+ * I've tried two RBM implementations &mdash; by [scikit-learn](http://scikit-learn.org/stable/modules/generated/sklearn.neural_network.BernoulliRBM.html) and [Leif Johnson](https://github.com/lmjohns3/py-rbm), both gave me the same randomized weights.
+ * I've also tried an antoencoder solution by [theanets](https://github.com/lmjohns3/theanets), with again, same kind of error.
+ * I've re-implemended whitening from [UFLDL excercise](http://ufldl.stanford.edu/wiki/index.php/Implementing_PCA/Whitening) in Octave in case my Python whitening code is somewhat wrong, but nope, two outputs look pretty much the same.
+ * I've found some [posts](https://plus.google.com/+AlexSusemihl/posts/LTE53tun5DC) that report the same problem.
+
+Whitening transform makes features less corellated with each other; so is there something wrong with these corellations in MNIST digits? One can safely assume that the border around digits is quite a redundant and intercorellated piece of data, but maybe that's not true for the digit pixels themselves... Well, anyway, I'm going to drop it for now and assume I'm done with Gaussian RBMs. No penstrokes still, which is sad.
+
+# Convolutional RBM
+
+And *this* one took an enormous amount of time. The architecture is quite simple: if one's familiar with convolutional networks, it's basically just the same with a couple of hints. Convolutional RBM is introduced in [this](http://www.cs.toronto.edu/~rgrosse/icml09-cdbn.pdf) paper as a part of a larger convolutional DBN structure. The key differences with Bernoulli RBM are the following:
+
+ * Instead of $$k$$ hidden units we now have $$k$$ *feature maps* which are 2d collections of binary units. So actually there are $$k \times H_{h} \times W_{h}$$ hidden units total (assuming $$H_{h}$$ and $$W_{h}$$ are feature map's height and width). I find it easier to think about just $$k$$ hidden variables, when each variable is a 2d array but essentially still represents one feature (and has one scalar bias value $$b_{k}$$).
+ * Each of $$k$$ feature maps has a filter weight matrix $$W_{k}$$ which is also 2-dimensional ($$H_{W} \times W_{W}$$). To obtain a feature map, the input image is convolved with the corresponding filter (that's a forward pass).
+ * Now there's a trick: remember, RBMs are symmetric. So to obtain visible data given the hidden we're going to perform convolution again, but in "full" mode (instead of "valid" mode we used in the forward pass). So if the input image has size $$H_{I} \times W_{I}$$, feature maps obtained by valid convolutions have size $$H_{h}=H_{I}-H_{W}+1, W_{h}=W_{i}-W_{W}+1$$. And to perform the backward pass we have to full-convolve feature maps by filter weights producing reconstrunction of $$H_{I} \times W_{I}$$ size again. Funny that it's not mentioned anywhere except py-rbm implementation. Also don't forget that a reconstruction is actually a sum of these convolutions across all feature maps.
+ * And to compute visible-hidden associations required for contrastive divergence we perform another convolution, namely convolve visible data with hidden (in "valid" mode again), so the result is shaped like filter weights.
+ * Ah, and also visible bias is just a scalar value now. I wonder why.
+
+**Note**: if you're trying to implement a convolutional RBM only, without further extending it to DBN, forget about pooling layer &mdash; you don't need it. I've spent quite some time here before I realized that Lee's paper places pooling to a DBN-related section and it's perfectly possible to perform sampling without it. It's included in [py-rbm](https://github.com/lmjohns3/py-rbm) for some reason, although.
+
+Now the problem is, it seems, that a convolutional RBM (even binary one) requires a lot of fine-tuning, playing with parameters and weights. The most surprising part, I guess, is that sometimes it actually needs *just a few* hidden variables/feature maps to learn something meaningful. I tried to feed little toy datasets to it (something like 5 random MNIST digits) and was able to observe some patterns in its behaviour:
+
+ * the more the filter size is, the better CRBM works. With $$28 \times 28$$ filters it actually reduces to a Bernoulli RBM showing comparable results.
+ * when filter size is small (not even *very* small, something like $$17 \times 17$$) and number of hidden feature maps is "large" (like 5 for a dataset of 5 MNIST digits), it very quickly learns a redundant set of round-shaped weights and then seemingly stops learning, which looks like this:
+
+<div class="photo_frame_center">
+ <video width="650" height="250" controls preload="none">
+  <source src="/assets/article_images/2015-07-31-rbms-part-2/5_weights.webm" type='video/webm; codecs="vp8, vorbis"'>
+ </video>
+</div>
+<br>
+
+ * it's also unable to produce a correct reconstruction ending up with more or less random noise:
+
+<div class="photo_frame_center">
+ <video width="650" height="250" controls preload="none">
+  <source src="/assets/article_images/2015-07-31-rbms-part-2/5_recon.webm" type='video/webm; codecs="vp8, vorbis"'>
+ </video>
+</div>
+<br>
+
+ * when you *decrease* the number of feature maps the perfomance actually turns better (for example, 3 feature maps instead of 5 makes it much better). An alternative way is to add sparsity contraint. For example, here's the same amount of feature maps (5) but with 0.1 sparsity target:
+
+<div class="photo_frame_center">
+ <video width="650" height="250" controls preload="none">
+  <source src="/assets/article_images/2015-07-31-rbms-part-2/5_sparse_weights.webm" type='video/webm; codecs="vp8, vorbis"'>
+ </video>
+</div>
+<br>
+
+And reconstructions:
+
+<div class="photo_frame_center">
+ <video width="650" height="250" controls preload="none">
+  <source src="/assets/article_images/2015-07-31-rbms-part-2/5_sparse_recon.webm" type='video/webm; codecs="vp8, vorbis"'>
+ </video>
+</div>
+<br>
+
+Can't imagine why such a strange behaviour &mdash; I'd say increasing hidden units size results in redundant features, yes, but also increases reconstruction precision...
+
+I haven't tried larger datasets mainly because my convolution implementation is not very efficient (I use scipy's `convolve2d` looping across training examples). Apparently Theano is the way to go. And maybe go a step further and make a full-sized convolutional DBN.
